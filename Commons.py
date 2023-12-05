@@ -5,7 +5,7 @@ from sklearn.cluster import KMeans
 def read_image(filepath):
     # Read image
     img = cv.imread(filepath)
-    if img == None:
+    if img is None:
         raise FileNotFoundError("File not found: %s" % filepath)
     return img
 
@@ -79,20 +79,28 @@ def get_dominant_color(image, k=2):
     return dominant_color
 
 
+# 获取所有物体
 def get_objects(img):
+    # 裁切图片
     img = img_split(img, mode = "left", ratio = 0.18)
     img = img_split(img, mode = "bottom", ratio = 0.89)
     img = img_split(img, mode = "right", ratio = 0.7)
 
     img_drawn = img.copy()
 
+    # 灰度化
     img = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
+    # 二值化
     img = cv.threshold(img, 127, 255, cv.THRESH_BINARY)[1]
+    # 腐蚀
     img = img_erode(img, kernel_size=3)
+
     num_labels, labels, stats, centroids = cv.connectedComponentsWithStats(img, connectivity=8)
     img = img_size_masking(img, stats, labels, 500, 0)
+
     img = img_reverse(img)
 
+    # 轮廓检测
     contours, hierarchy = cv.findContours(img, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
 
     objects = []
@@ -101,6 +109,7 @@ def get_objects(img):
         x, y, w, h = cv.boundingRect(contour)
         mask = img[y:y+h, x:x+w]
         object = img_drawn[y:y + h, x:x + w]
+        # 为了方便，将背景变为灰色
         object[mask == 0] = 120
 
         img_show(object)
@@ -110,18 +119,21 @@ def get_objects(img):
     return objects
 
 
+# 膨胀
 def img_dilate(img, kernel_size=1):
     kernel = np.ones((kernel_size, kernel_size), np.uint8)
     img = cv.dilate(img, kernel, iterations = 1)
     return img
 
 
+# 腐蚀
 def img_erode(img, kernel_size=1):
     kernel = np.ones((kernel_size, kernel_size), np.uint8)
     img = cv.erode(img, kernel, iterations = 1)
     return img
 
 
+# 剔除面积过小或过大的连通域
 def img_size_masking(img, stats, labels, threshold_area = 500, mode = 0):
     assert mode == 1 or mode == 0
 
@@ -138,8 +150,10 @@ def img_size_masking(img, stats, labels, threshold_area = 500, mode = 0):
 
 
 def find_target(object, target_img):
-    # object = cv.cvtColor(object, cv.COLOR_BGR2GRAY)
-    # target_img = cv.cvtColor(target_img, cv.COLOR_BGR2GRAY)
+    object = cv.cvtColor(object, cv.COLOR_BGR2GRAY)
+    target_img = cv.cvtColor(target_img, cv.COLOR_BGR2GRAY)
+
+    # 匹配模板
     result = cv.matchTemplate(target_img, object, cv.TM_CCOEFF_NORMED)
     min_val, max_val, min_loc, max_loc = cv.minMaxLoc(result)
 
